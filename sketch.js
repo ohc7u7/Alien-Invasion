@@ -4,6 +4,7 @@ const STATE_MENU = 0;
 const STATE_PLAYING = 1;
 const STATE_GAMEOVER = 2;
 const STATE_LEVELUP = 3;
+// STATE_SKINSELECT = 4  (defined in skins.js)
 
 let gameState = STATE_MENU;
 
@@ -16,6 +17,7 @@ let enemies = [];
 let playerBullets = [];
 let enemyBullets = [];
 let explosions = [];
+let powerups = [];   // active falling power-ups
 let starfield;
 let handCtrl;
 
@@ -31,6 +33,10 @@ let killThresholds = [10, 4, 2];
 
 // Screen shake
 let shakeAmount = 0;
+
+// Elite enemy tracking
+let totalKills = 0;
+const ELITE_EVERY = 5; // every N kills, next respawn is elite
 
 // ── P5 lifecycle ─────────────────────────────────────────────
 
@@ -50,6 +56,7 @@ function setup() {
 
     recalcGameBox();
     starfield = createStarfield();
+    loadSkinUnlocks();
 
     handCtrl = new HandController();
     handCtrl.init();
@@ -67,6 +74,7 @@ function draw() {
     background(5, 3, 18);
     drawStarfield(starfield);
 
+    // Side UI
     if (gameState === STATE_PLAYING || gameState === STATE_LEVELUP) {
         drawSideUI();
     }
@@ -100,6 +108,7 @@ function draw() {
 
     switch (gameState) {
         case STATE_MENU: updateMenu(); break;
+        case STATE_SKINSELECT: updateSkinSelect(); break;
         case STATE_PLAYING: updatePlaying(); break;
         case STATE_GAMEOVER: updateGameOver(); break;
         case STATE_LEVELUP: updateLevelUp(); break;
@@ -122,19 +131,42 @@ function windowResized() {
 function updateMenu() {
     drawMenuScreen(handCtrl.ready || _kbReady, gw, gh);
     if ((handCtrl.ready && handCtrl.detected) || _kbReady) {
-        startGame();
+        _kbReady = false;
+        gameState = STATE_SKINSELECT;
     }
 }
 
 let _kbReady = false;
+
 function keyPressed() {
-    if (gameState === STATE_MENU && (keyCode === ENTER || keyCode === 32)) _kbReady = true;
-    if (gameState === STATE_GAMEOVER && (keyCode === ENTER || keyCode === 32)) startGame();
+    if (gameState === STATE_MENU && (keyCode === ENTER || keyCode === 32)) {
+        _kbReady = true;
+    }
+    if (gameState === STATE_SKINSELECT) {
+        if (keyCode === LEFT_ARROW || key === 'a' || key === 'A') {
+            selectedSkinIdx = (selectedSkinIdx - 1 + SKINS.length) % SKINS.length;
+        }
+        if (keyCode === RIGHT_ARROW || key === 'd' || key === 'D') {
+            selectedSkinIdx = (selectedSkinIdx + 1) % SKINS.length;
+        }
+        if ((keyCode === ENTER || keyCode === 32) && SKINS[selectedSkinIdx].unlocked) {
+            startGame();
+        }
+    }
+    if (gameState === STATE_GAMEOVER && (keyCode === ENTER || keyCode === 32)) {
+        gameState = STATE_SKINSELECT;
+    }
     if (gameState === STATE_LEVELUP) {
         if (key === '1') applyUpgrade(1);
         if (key === '2') applyUpgrade(2);
         if (key === '3') applyUpgrade(3);
     }
+}
+
+// ── SKIN SELECT ──────────────────────────────────────────────
+
+function updateSkinSelect() {
+    drawSkinSelectScreen(gw, gh);
 }
 
 // ── PLAYING ──────────────────────────────────────────────────
@@ -155,10 +187,14 @@ function updatePlaying() {
     playerBullets = playerBullets.filter(b => b.active);
     enemyBullets = enemyBullets.filter(b => b.active);
 
+    // Update power-ups
+    for (let p of powerups) p.update();
+    powerups = powerups.filter(p => p.active);
+
     for (let e of explosions) e.update();
     explosions = explosions.filter(e => !e.isDone());
 
-    // ── Collisions ──
+    // ── Collisions: player bullets → enemies ──
     for (let bi = playerBullets.length - 1; bi >= 0; bi--) {
         let b = playerBullets[bi];
         if (!b.active) continue;
@@ -170,7 +206,19 @@ function updatePlaying() {
                 if (e.hit(player.damage)) {
                     player.score += 100;
                     player.exp += 100;
-                    explosions.push(new Explosion(e.x, e.y, 28));
+                    totalKills++;
+
+                    // Elite enemy → drop power-up
+                    if (e.elite) {
+                        let puType = floor(random(4));
+                        powerups.push(new PowerUp(e.x, e.y, puType));
+                        explosions.push(new Explosion(e.x, e.y, 35, [
+                            [255, 220, 50], [255, 255, 100], [255, 180, 0], [255, 240, 150]
+                        ]));
+                    } else {
+                        explosions.push(new Explosion(e.x, e.y, 28));
+                    }
+
                     shakeAmount = 5;
                     killCount++;
                     respawnEnemy(ei);
@@ -180,6 +228,7 @@ function updatePlaying() {
         }
     }
 
+    // ── Collisions: enemy bullets → player ──
     for (let bi = enemyBullets.length - 1; bi >= 0; bi--) {
         let b = enemyBullets[bi];
         if (!b.active) continue;
@@ -187,6 +236,7 @@ function updatePlaying() {
             b.active = false;
             if (player.takeDamage(1)) {
                 gameState = STATE_GAMEOVER;
+                checkAndUnlockSkins(player.score);
                 explosions.push(new Explosion(player.x, player.y, 50, [
                     [0, 180, 255], [0, 255, 255], [255, 255, 255], [100, 200, 255]
                 ]));
@@ -197,6 +247,20 @@ function updatePlaying() {
         }
     }
 
+    // ── Collisions: power-ups → player ──
+    for (let pi = powerups.length - 1; pi >= 0; pi--) {
+        let pu = powerups[pi];
+        if (!pu.active) continue;
+        if (pu.collidesWith(player.x, player.y, player.w)) {
+            pu.active = false;
+            player.buffs.add(pu.type);
+            // Pickup flash
+            explosions.push(new Explosion(player.x, player.y, 15, [
+                PU_DEFS[pu.type].col, [255, 255, 255]
+            ]));
+        }
+    }
+
     // ── Check level-up ──
     if (player.exp >= player.expToLevel) {
         gameState = STATE_LEVELUP;
@@ -204,12 +268,18 @@ function updatePlaying() {
 
     // ── Draw ──
     for (let e of enemies) e.draw(getSpriteForType(e.type));
+    for (let pu of powerups) pu.draw();
     player.draw(sprPlayer);
     for (let b of playerBullets) b.draw();
     for (let b of enemyBullets) b.draw();
     for (let e of explosions) e.draw();
 
     drawScoreInBox(player.score, gw);
+
+    // Buff indicators inside box
+    if (player.buffs) {
+        player.buffs.drawIndicators(8, gh - 28);
+    }
 }
 
 // ── LEVEL UP ─────────────────────────────────────────────────
@@ -249,7 +319,7 @@ function applyUpgrade(option) {
             player.health = player.maxHealth;
             break;
         case 2:
-            player.damage += 2;
+            player.baseDamage += 2;
             break;
         case 3:
             player.shotCadence = max(150, player.shotCadence - 60);
@@ -271,19 +341,22 @@ function updateGameOver() {
     for (let e of explosions) e.draw();
     drawGameOverScreen(player.score, gw, gh);
     if (gameOverCooldown > 0) { gameOverCooldown--; return; }
-    if (handCtrl.detected || _kbReady) startGame();
+    if (handCtrl.detected) { gameState = STATE_SKINSELECT; }
 }
 
 // ── Game init ────────────────────────────────────────────────
 
 function startGame() {
-    player = new Player(gw / 2, gh * 0.75);
+    let skin = getSelectedSkin();
+    player = new Player(gw / 2, gh * 0.75, skin);
     enemies = [];
     playerBullets = [];
     enemyBullets = [];
     explosions = [];
+    powerups = [];
     waveType = 1;
     killCount = 0;
+    totalKills = 0;
     gameOverCooldown = 60;
     _kbReady = false;
     gameState = STATE_PLAYING;
@@ -336,7 +409,16 @@ function respawnEnemy(idx) {
         return;
     }
     let old = enemies[idx];
-    enemies[idx] = new Enemy(old.x, old.spawnTargetY, waveType, old.pattern, old.pp);
+    let e = new Enemy(old.x, old.spawnTargetY, waveType, old.pattern, old.pp);
+
+    // Make elite if cycle hit
+    if (totalKills > 0 && totalKills % ELITE_EVERY === 0) {
+        e.elite = true;
+        e.hearts = ceil(e.hearts * 1.5);
+        e.maxH = e.hearts;
+    }
+
+    enemies[idx] = e;
 }
 
 function getSpriteForType(t) {
@@ -345,10 +427,20 @@ function getSpriteForType(t) {
     return sprEnemy3;
 }
 
-// ── Mouse click for card selection ───────────────────────────
+// ── Mouse ────────────────────────────────────────────────────
 function mousePressed() {
     if (gameState === STATE_LEVELUP) {
         let card = getClickedCard(mouseX, mouseY);
         if (card > 0) applyUpgrade(card);
+    }
+    if (gameState === STATE_SKINSELECT) {
+        handleSkinSelectClick(mouseX, mouseY, gw, gh);
+        // Double-click start: if clicked on already-selected unlocked skin
+        let sk = SKINS[selectedSkinIdx];
+        if (sk.unlocked) {
+            // Check if click is in the lower area (start button zone)
+            let ry = mouseY - gy;
+            if (ry > gh * 0.7) startGame();
+        }
     }
 }
