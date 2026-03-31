@@ -14,12 +14,14 @@ let sprPlayer, sprEnemy1, sprEnemy2, sprEnemy3, sprBullet;
 // Objects
 let player;
 let enemies = [];
-let playerBullets = [];
-let enemyBullets = [];
-let explosions = [];
+let bulletPool;
+let particlePool;
+let exhaustPool;
+let explosionPool;
 let powerups = [];   // active falling power-ups
 let starfield;
 let handCtrl;
+let frameGlowLayer;
 
 // Game box (fixed arcade-style area)
 let gx, gy, gw, gh;
@@ -55,11 +57,19 @@ function setup() {
     textAlign(CENTER, CENTER);
 
     recalcGameBox();
+    initPools();
     starfield = createStarfield();
     loadSkinUnlocks();
 
     handCtrl = new HandController();
     handCtrl.init();
+}
+
+function initPools() {
+    bulletPool = new BulletPool(160);
+    particlePool = new ParticlePool(700);
+    exhaustPool = new ParticlePool(280);
+    explosionPool = new ExplosionPool(24, particlePool);
 }
 
 function recalcGameBox() {
@@ -68,11 +78,24 @@ function recalcGameBox() {
     gh = floor(GAME_H * scale);
     gx = floor((windowWidth - gw) / 2);
     gy = floor((windowHeight - gh) / 2);
+    buildFrameGlow();
+}
+
+function buildFrameGlow() {
+    frameGlowLayer = createGraphics(gw + 14, gh + 14);
+    frameGlowLayer.clear();
+    frameGlowLayer.noFill();
+    for (let i = 0; i < 5; i++) {
+        frameGlowLayer.stroke(0, 140, 255, 80 - i * 12);
+        frameGlowLayer.strokeWeight(1 + i);
+        frameGlowLayer.rect(7 - i, 7 - i, gw + i * 2, gh + i * 2, 4);
+    }
 }
 
 function draw() {
     background(5, 3, 18);
     drawStarfield(starfield);
+    if (handCtrl) handCtrl.update();
 
     // Side UI
     if (gameState === STATE_PLAYING || gameState === STATE_LEVELUP) {
@@ -81,14 +104,13 @@ function draw() {
 
     // ── Game box ──
     push();
-    let ctx = drawingContext;
-    ctx.shadowBlur = 20;
-    ctx.shadowColor = 'rgba(0,120,255,0.3)';
+    if (frameGlowLayer) {
+        image(frameGlowLayer, gx - 7, gy - 7);
+    }
     stroke(0, 120, 255, 80);
     strokeWeight(2);
     noFill();
     rect(gx - 2, gy - 2, gw + 4, gh + 4, 3);
-    ctx.shadowBlur = 0;
 
     drawingContext.save();
     drawingContext.beginPath();
@@ -178,31 +200,28 @@ function updatePlaying() {
         hy = map(handCtrl.handY, 0, height, 0, gh);
     }
 
-    player.update(hx, hy, handCtrl.shooting, playerBullets, gw, gh);
+    player.update(hx, hy, handCtrl.shooting, bulletPool, exhaustPool, gw, gh);
 
-    for (let e of enemies) e.update(enemyBullets, gw, gh);
+    for (let e of enemies) e.update(bulletPool, gw, gh);
 
-    for (let b of playerBullets) b.update(gw, gh);
-    for (let b of enemyBullets) b.update(gw, gh);
-    playerBullets = playerBullets.filter(b => b.active);
-    enemyBullets = enemyBullets.filter(b => b.active);
+    bulletPool.updateAll(gw, gh);
+    particlePool.updateAll();
+    exhaustPool.updateAll();
+    explosionPool.updateAll();
 
     // Update power-ups
     for (let p of powerups) p.update();
     powerups = powerups.filter(p => p.active);
 
-    for (let e of explosions) e.update();
-    explosions = explosions.filter(e => !e.isDone());
-
     // ── Collisions: player bullets → enemies ──
-    for (let bi = playerBullets.length - 1; bi >= 0; bi--) {
-        let b = playerBullets[bi];
-        if (!b.active) continue;
+    for (let bi = 0; bi < bulletPool.pool.length; bi++) {
+        let b = bulletPool.pool[bi];
+        if (!b.active || !b.isPlayer) continue;
         for (let ei = 0; ei < enemies.length; ei++) {
             let e = enemies[ei];
             if (!e.active || e.pattern === 'static' || e.spawning) continue;
             if (dist(b.x, b.y, e.x, e.y) < (e.w / 2 + b.radius)) {
-                b.active = false;
+                b.deactivate();
                 if (e.hit(player.damage)) {
                     player.score += 100;
                     player.exp += 100;
@@ -212,11 +231,11 @@ function updatePlaying() {
                     if (e.elite) {
                         let puType = floor(random(4));
                         powerups.push(new PowerUp(e.x, e.y, puType));
-                        explosions.push(new Explosion(e.x, e.y, 35, [
+                        explosionPool.getExplosion(e.x, e.y, 35, [
                             [255, 220, 50], [255, 255, 100], [255, 180, 0], [255, 240, 150]
-                        ]));
+                        ]);
                     } else {
-                        explosions.push(new Explosion(e.x, e.y, 28));
+                        explosionPool.getExplosion(e.x, e.y, 28);
                     }
 
                     shakeAmount = 5;
@@ -229,17 +248,17 @@ function updatePlaying() {
     }
 
     // ── Collisions: enemy bullets → player ──
-    for (let bi = enemyBullets.length - 1; bi >= 0; bi--) {
-        let b = enemyBullets[bi];
-        if (!b.active) continue;
+    for (let bi = 0; bi < bulletPool.pool.length; bi++) {
+        let b = bulletPool.pool[bi];
+        if (!b.active || b.isPlayer) continue;
         if (dist(b.x, b.y, player.x, player.y) < (player.w / 2.2 + b.radius)) {
-            b.active = false;
+            b.deactivate();
             if (player.takeDamage(1)) {
                 gameState = STATE_GAMEOVER;
                 checkAndUnlockSkins(player.score);
-                explosions.push(new Explosion(player.x, player.y, 50, [
+                explosionPool.getExplosion(player.x, player.y, 50, [
                     [0, 180, 255], [0, 255, 255], [255, 255, 255], [100, 200, 255]
-                ]));
+                ]);
                 shakeAmount = 14;
             } else {
                 shakeAmount = 6;
@@ -255,9 +274,9 @@ function updatePlaying() {
             pu.active = false;
             player.buffs.add(pu.type);
             // Pickup flash
-            explosions.push(new Explosion(player.x, player.y, 15, [
+            explosionPool.getExplosion(player.x, player.y, 15, [
                 PU_DEFS[pu.type].col, [255, 255, 255]
-            ]));
+            ]);
         }
     }
 
@@ -269,10 +288,10 @@ function updatePlaying() {
     // ── Draw ──
     for (let e of enemies) e.draw(getSpriteForType(e.type));
     for (let pu of powerups) pu.draw();
+    exhaustPool.drawAll();
     player.draw(sprPlayer);
-    for (let b of playerBullets) b.draw();
-    for (let b of enemyBullets) b.draw();
-    for (let e of explosions) e.draw();
+    bulletPool.drawAll();
+    particlePool.drawAll();
 
     drawScoreInBox(player.score, gw);
 
@@ -286,24 +305,21 @@ function updatePlaying() {
 
 function updateLevelUp() {
     for (let e of enemies) e.draw(getSpriteForType(e.type));
+    exhaustPool.drawAll();
     player.draw(sprPlayer);
-    for (let b of playerBullets) b.draw();
-    for (let b of enemyBullets) b.draw();
+    bulletPool.drawAll();
+    particlePool.drawAll();
     drawScoreInBox(player.score, gw);
 
     fill(0, 0, 20, 160);
     noStroke();
     rect(0, 0, gw, gh);
 
-    let ctx = drawingContext;
-    ctx.shadowBlur = 20;
-    ctx.shadowColor = 'rgba(255,220,50,0.8)';
     fill(255, 220, 50);
     textFont('Orbitron');
     textSize(min(gw * 0.07, 36));
     textAlign(CENTER, CENTER);
     text('¡LEVEL UP!', gw / 2, gh * 0.2);
-    ctx.shadowBlur = 0;
 
     fill(200);
     textFont('Rajdhani');
@@ -336,9 +352,9 @@ function applyUpgrade(option) {
 let gameOverCooldown = 0;
 
 function updateGameOver() {
-    for (let e of explosions) e.update();
-    explosions = explosions.filter(e => !e.isDone());
-    for (let e of explosions) e.draw();
+    explosionPool.updateAll();
+    particlePool.updateAll();
+    particlePool.drawAll();
     drawGameOverScreen(player.score, gw, gh);
     if (gameOverCooldown > 0) { gameOverCooldown--; return; }
     if (handCtrl.detected) { gameState = STATE_SKINSELECT; }
@@ -350,9 +366,10 @@ function startGame() {
     let skin = getSelectedSkin();
     player = new Player(gw / 2, gh * 0.75, skin);
     enemies = [];
-    playerBullets = [];
-    enemyBullets = [];
-    explosions = [];
+    bulletPool.deactivateAll();
+    particlePool.deactivateAll();
+    exhaustPool.deactivateAll();
+    explosionPool.deactivateAll();
     powerups = [];
     waveType = 1;
     killCount = 0;

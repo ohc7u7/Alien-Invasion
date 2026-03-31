@@ -150,10 +150,6 @@ function drawVerticalBar(x, y, w, h, pct, darkCol, brightCol, bgCol) {
 
     // Fill from bottom
     let fillH = h * pct;
-    let ctx = drawingContext;
-    ctx.shadowBlur = 10;
-    ctx.shadowColor = brightCol.toString();
-
     fill(brightCol);
     let clipY = y + h - fillH;
     drawingContext.save();
@@ -170,8 +166,6 @@ function drawVerticalBar(x, y, w, h, pct, darkCol, brightCol, bgCol) {
     rect(x, clipY, w, fillH);
 
     drawingContext.restore();
-    ctx.shadowBlur = 0;
-
     // Border
     stroke(brightCol.levels ? brightCol : color(200), 80);
     strokeWeight(1);
@@ -191,16 +185,12 @@ function drawVerticalBar(x, y, w, h, pct, darkCol, brightCol, bgCol) {
 // ═══════════════════════════════════════════════════════════
 
 function drawScoreInBox(score, bw) {
-    let ctx = drawingContext;
-    ctx.shadowBlur = 12;
-    ctx.shadowColor = 'rgba(255,50,50,0.6)';
     noStroke();
     fill(255, 50, 50);
     textFont('Orbitron');
     textSize(18);
     textAlign(RIGHT, TOP);
     text('SCORE ' + score, bw - 12, 12);
-    ctx.shadowBlur = 0;
 }
 
 // ═══════════════════════════════════════════════════════════
