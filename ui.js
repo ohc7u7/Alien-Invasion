@@ -126,12 +126,12 @@ function drawSideUI() {
     let pvY = gy + gh - pvH - 10;
     handCtrl.drawPreview(pvX, pvY, pvW, pvH);
 
-    // ── Gesture status near webcam ──
-    fill(handCtrl.shooting ? color(0, 255, 120) : color(140));
+    // ── Fire mode status near webcam ──
+    fill(0, 255, 120);
     textFont('Rajdhani');
     textSize(10);
     textAlign(LEFT, TOP);
-    text(handCtrl.shooting ? 'DISPARO' : 'ESTÁTICO', pvX, pvY - 14);
+    text('AUTO FIRE', pvX, pvY - 14);
 }
 
 function drawVerticalBar(x, y, w, h, pct, darkCol, brightCol, bgCol) {

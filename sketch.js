@@ -173,7 +173,7 @@ function updateSkinSelect() {
 
 function updatePlaying() {
     let hx = null, hy = null;
-    if (handCtrl.handX !== null && handCtrl.handY !== null) {
+    if (handCtrl.detected && handCtrl.handX !== null && handCtrl.handY !== null) {
         hx = map(handCtrl.handX, 0, width, 0, gw);
         hy = map(handCtrl.handY, 0, height, 0, gh);
     }

@@ -73,9 +73,8 @@ class Player {
         let dx = this.x - prevX;
         this.tilt = lerp(this.tilt, constrain(dx * 3, -0.3, 0.3), 0.12);
 
-        // Shoot: gesture OR P key (hold to auto-fire)
-        let kbShoot = keyIsDown(80);
-        let canShoot = shooting || kbShoot;
+        // Always auto-fire (gesture model removed).
+        let canShoot = true;
         if (canShoot && millis() - this.lastShotTime > currentCadence) {
             this.lastShotTime = millis();
             playerBullets.push(new Bullet(this.x, this.y - this.h / 2, 0, -9, true));
@@ -85,8 +84,8 @@ class Player {
                 playerBullets.push(new Bullet(this.x + 12, this.y - this.h / 2 + 8, 1.5, -8, true));
             }
         }
-        this.prevShoot = shooting;
-        this._prevKbShoot = kbShoot;
+        this.prevShoot = true;
+        this._prevKbShoot = false;
 
         this.exhaust.emit(this.x, this.y + this.h / 2);
         this.exhaust.update();
