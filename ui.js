@@ -79,7 +79,7 @@ function drawSideUI() {
     text(player.health + '/' + player.maxHealth, lx + barW / 2, ly + barH + 8);
 
     // ── RIGHT SIDE: "NIVEL" vertical label + EXP bar ──
-    let rx = gx + gw + 10;
+    let rx = gx + gw + 30;
     let ry = gy + (gh - barH) / 2;
 
     // Label "NIVEL"
@@ -125,13 +125,6 @@ function drawSideUI() {
     let pvX = 10;
     let pvY = gy + gh - pvH - 10;
     handCtrl.drawPreview(pvX, pvY, pvW, pvH);
-
-    // ── Fire mode status near webcam ──
-    fill(0, 255, 120);
-    textFont('Rajdhani');
-    textSize(10);
-    textAlign(LEFT, TOP);
-    text('AUTO FIRE', pvX, pvY - 14);
 }
 
 function drawVerticalBar(x, y, w, h, pct, darkCol, brightCol, bgCol) {
