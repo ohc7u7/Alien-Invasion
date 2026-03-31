@@ -1,4 +1,4 @@
-// ── HandController — ML5 HandPose (movement only) ────────────
+// ── HandController — ML5 HandPose optimized ──────────────────
 class HandController {
     constructor() {
         this.video = null;
@@ -6,36 +6,49 @@ class HandController {
 
         this.handX = null;
         this.handY = null;
+        this.targetHandX = null;
+        this.targetHandY = null;
         this.detected = false;
         this.shooting = true;
 
         this.hpReady = false;
         this.ready = false;
 
-        // Tracking tuning for lower jitter and less CPU load.
-        this.captureW = 224;
-        this.captureH = 168;
-        this.smoothing = 0.28;
-        this.deadZone = 6;
-        this.maxLostFrames = 8;
+        this.captureW = 160;
+        this.captureH = 120;
+        this.followLerp = 0.22;
+        this.deadZone = 3;
+        this.maxLostFrames = 10;
         this.lostFrames = 0;
         this.minConfidence = 0.75;
-        this.warmupFrames = 6;
+        this.warmupFrames = 5;
         this.stableFrames = 0;
         this.controlReady = false;
         this.centerOffsetX = 0;
         this.hasCenterCalibration = false;
 
-        this.statusText = 'Inicializando cámara…';
+        this.maxInferenceFps = 15;
+        this.inferenceIntervalMs = 1000 / this.maxInferenceFps;
+        this.lastInferenceMs = -99999;
+
+        this.statusText = 'Inicializando camara...';
     }
 
     init() {
-        // P5 video capture
-        this.video = createCapture(VIDEO);
+        const constraints = {
+            audio: false,
+            video: {
+                facingMode: 'user',
+                width: { ideal: this.captureW, max: this.captureW },
+                height: { ideal: this.captureH, max: this.captureH },
+                frameRate: { ideal: 30, max: 30 }
+            }
+        };
+
+        this.video = createCapture(constraints);
         this.video.size(this.captureW, this.captureH);
         this.video.hide();
 
-        // HandPose
         this.handpose = ml5.handpose(this.video, () => {
             console.log('HandPose loaded');
             this.hpReady = true;
@@ -43,79 +56,91 @@ class HandController {
         });
 
         this.handpose.on('predict', (results) => {
-            if (results.length > 0) {
-                let hand = results[0];
-                let conf = hand.handInViewConfidence ?? 1;
-                if (conf < this.minConfidence) {
-                    this.lostFrames++;
-                    if (this.lostFrames >= this.maxLostFrames) {
-                        this.detected = false;
-                        this.handX = null;
-                        this.handY = null;
-                        this.stableFrames = 0;
-                        this.controlReady = false;
-                        this.hasCenterCalibration = false;
-                    }
-                    return;
-                }
-
-                let lm = hand.landmarks;
-                // Palm ≈ average of wrist(0) and middle-finger-mcp(9)
-                let rawX = (lm[0][0] + lm[9][0]) / 2;
-                let rawY = (lm[0][1] + lm[9][1]) / 2;
-                // Mirror X so moving hand left moves ship left
-                let targetX = map(this.video.width - rawX, 0, this.video.width, 0, width);
-                let targetY = map(rawY, 0, this.video.height, height * 0.2, height - 30);
-
-                this.lostFrames = 0;
-
-                // Require a few stable frames before enabling movement.
-                if (!this.controlReady) {
-                    this.stableFrames++;
-                    if (this.stableFrames >= this.warmupFrames) {
-                        this.controlReady = true;
-                        this.centerOffsetX = targetX - width * 0.5;
-                        this.hasCenterCalibration = true;
-                        this.handX = width * 0.5;
-                        this.handY = targetY;
-                        this.detected = true;
-                    } else {
-                        this.detected = false;
-                        this.handX = null;
-                        this.handY = null;
-                    }
-                    return;
-                }
-
-                if (this.hasCenterCalibration) {
-                    targetX -= this.centerOffsetX;
-                }
-
-                if (this.handX === null || this.handY === null) {
-                    this.handX = targetX;
-                    this.handY = targetY;
-                } else {
-                    this.handX = this._smoothAxis(this.handX, targetX);
-                    this.handY = this._smoothAxis(this.handY, targetY);
-                }
-
-                this.handX = constrain(this.handX, 0, width);
-                this.handY = constrain(this.handY, 0, height);
-                this.detected = true;
-            } else {
-                this.lostFrames++;
-                if (this.lostFrames >= this.maxLostFrames) {
-                    this.detected = false;
-                    this.handX = null;
-                    this.handY = null;
-                    this.stableFrames = 0;
-                    this.controlReady = false;
-                    this.hasCenterCalibration = false;
-                }
-            }
+            const now = millis();
+            if (now - this.lastInferenceMs < this.inferenceIntervalMs) return;
+            this.lastInferenceMs = now;
+            this._processPrediction(results);
         });
 
         this._checkReady();
+    }
+
+    update() {
+        if (!this.detected || this.targetHandX === null || this.targetHandY === null) {
+            return;
+        }
+
+        if (this.handX === null || this.handY === null) {
+            this.handX = this.targetHandX;
+            this.handY = this.targetHandY;
+            return;
+        }
+
+        this.handX = this._smoothAxis(this.handX, this.targetHandX);
+        this.handY = this._smoothAxis(this.handY, this.targetHandY);
+        this.handX = constrain(this.handX, 0, width);
+        this.handY = constrain(this.handY, 0, height);
+    }
+
+    _processPrediction(results) {
+        if (!results || results.length === 0) {
+            this.lostFrames++;
+            this._checkLostTracking();
+            return;
+        }
+
+        let hand = results[0];
+        let conf = hand.handInViewConfidence ?? 1;
+        if (conf < this.minConfidence) {
+            this.lostFrames++;
+            this._checkLostTracking();
+            return;
+        }
+
+        let lm = hand.landmarks;
+        let rawX = (lm[0][0] + lm[9][0]) * 0.5;
+        let rawY = (lm[0][1] + lm[9][1]) * 0.5;
+        let mappedX = map(this.video.width - rawX, 0, this.video.width, 0, width);
+        let mappedY = map(rawY, 0, this.video.height, height * 0.2, height - 30);
+
+        this.lostFrames = 0;
+
+        if (!this.controlReady) {
+            this.stableFrames++;
+            if (this.stableFrames >= this.warmupFrames) {
+                this.controlReady = true;
+                this.centerOffsetX = mappedX - width * 0.5;
+                this.hasCenterCalibration = true;
+                this.targetHandX = width * 0.5;
+                this.targetHandY = mappedY;
+                this.handX = this.targetHandX;
+                this.handY = this.targetHandY;
+                this.detected = true;
+            } else {
+                this.detected = false;
+            }
+            return;
+        }
+
+        if (this.hasCenterCalibration) {
+            mappedX -= this.centerOffsetX;
+        }
+
+        this.targetHandX = constrain(mappedX, 0, width);
+        this.targetHandY = constrain(mappedY, 0, height);
+        this.detected = true;
+    }
+
+    _checkLostTracking() {
+        if (this.lostFrames < this.maxLostFrames) return;
+        this.detected = false;
+        this.handX = null;
+        this.handY = null;
+        this.targetHandX = null;
+        this.targetHandY = null;
+        this.stableFrames = 0;
+        this.controlReady = false;
+        this.hasCenterCalibration = false;
     }
 
     _checkReady() {
@@ -126,41 +151,32 @@ class HandController {
     }
 
     _smoothAxis(current, target) {
-        let delta = target - current;
-        if (abs(delta) < this.deadZone) return current;
-        return lerp(current, target, this.smoothing);
+        if (abs(target - current) < this.deadZone) return current;
+        return lerp(current, target, this.followLerp);
     }
 
-    /** Draw mirrored webcam preview */
     drawPreview(px, py, pw, ph) {
         if (!this.video) return;
+
         push();
+        noStroke();
+        fill(0, 160);
+        rect(px - 3, py - 3, pw + 6, ph + 6, 6);
+        fill(0, 180, 255, 70);
+        rect(px - 1, py - 1, pw + 2, ph + 2, 4);
 
-        // Border glow
-        let ctx = drawingContext;
-        ctx.shadowBlur = 8;
-        ctx.shadowColor = 'rgba(0,200,255,0.4)';
-        stroke(0, 180, 255, 120);
-        strokeWeight(2);
-        noFill();
-        rect(px - 2, py - 2, pw + 4, ph + 4, 5);
-        ctx.shadowBlur = 0;
-
-        // Mirrored video
         push();
         translate(px + pw, py);
         scale(-1, 1);
         image(this.video, 0, 0, pw, ph);
         pop();
 
-        // Status label
-        noStroke();
         textFont('Rajdhani');
         textSize(11);
         textAlign(LEFT, TOP);
+        noStroke();
         fill(0, 255, 120);
         text('AUTO FIRE', px + 3, py + ph + 4);
-
         pop();
     }
 }
