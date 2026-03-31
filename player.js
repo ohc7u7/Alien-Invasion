@@ -26,10 +26,11 @@ class Player {
 
         this.lastShotTime = 0;
         this.shotCadence = this.baseCadence;
+        this.mainBulletSpeed = 13;
+        this.rapidBulletSpeed = 12;
+        this.rapidSpreadSpeed = 2.2;
         this.prevShoot = false;
         this._prevKbShoot = false;
-
-        this.exhaust = new EngineExhaust();
         this.iFrames = 0;
         this.tilt = 0;
 
@@ -37,7 +38,7 @@ class Player {
         this.buffs = new BuffManager();
     }
 
-    update(handX, handY, shooting, playerBullets, bw, bh) {
+    update(handX, handY, shooting, bulletPool, exhaustPool, bw, bh) {
         // Update buffs
         this.buffs.update();
 
@@ -77,20 +78,38 @@ class Player {
         let canShoot = true;
         if (canShoot && millis() - this.lastShotTime > currentCadence) {
             this.lastShotTime = millis();
-            playerBullets.push(new Bullet(this.x, this.y - this.h / 2, 0, -9, true));
+            bulletPool.getBullet(this.x, this.y - this.h / 2, 0, -this.mainBulletSpeed, true);
             // Rapid fire: extra side bullets
             if (this.buffs.has(PU_RAPID)) {
-                playerBullets.push(new Bullet(this.x - 12, this.y - this.h / 2 + 8, -1.5, -8, true));
-                playerBullets.push(new Bullet(this.x + 12, this.y - this.h / 2 + 8, 1.5, -8, true));
+                bulletPool.getBullet(this.x - 12, this.y - this.h / 2 + 8, -this.rapidSpreadSpeed, -this.rapidBulletSpeed, true);
+                bulletPool.getBullet(this.x + 12, this.y - this.h / 2 + 8, this.rapidSpreadSpeed, -this.rapidBulletSpeed, true);
             }
         }
         this.prevShoot = true;
         this._prevKbShoot = false;
 
-        this.exhaust.emit(this.x, this.y + this.h / 2);
-        this.exhaust.update();
+        this.emitExhaust(exhaustPool);
 
         if (this.iFrames > 0) this.iFrames--;
+    }
+
+    emitExhaust(exhaustPool) {
+        if (!exhaustPool) return;
+        for (let i = 0; i < 2; i++) {
+            exhaustPool.emit(
+                this.x + random(-8, 8),
+                this.y + this.h / 2,
+                [0, floor(random(120, 255)), 255],
+                {
+                    vx: random(-0.5, 0.5),
+                    vy: random(2, 5),
+                    size: random(3, 6),
+                    decay: random(0.04, 0.07),
+                    gravity: 0.03,
+                    drag: 0.96
+                }
+            );
+        }
     }
 
     takeDamage(amt) {
@@ -103,29 +122,20 @@ class Player {
     }
 
     draw(sprite) {
-        this.exhaust.draw();
         push();
         translate(this.x, this.y);
         rotate(this.tilt);
         if (this.iFrames > 0 && frameCount % 6 < 3) { pop(); return; }
 
-        let ctx = drawingContext;
-
         // Shield visual
         if (this.buffs.has(PU_SHIELD)) {
             let sp = (sin(frameCount * 0.08) + 1) * 0.5;
-            ctx.shadowBlur = 30;
-            ctx.shadowColor = `rgba(0,220,255,${0.3 + sp * 0.3})`;
             noFill();
             stroke(0, 220, 255, 80 + sp * 80);
             strokeWeight(2);
             ellipse(0, 0, this.w + 18, this.h + 18);
             noStroke();
         }
-
-        // Ship glow (tinted to skin color)
-        ctx.shadowBlur = 28;
-        ctx.shadowColor = `rgba(${this.skinCol[0]},${this.skinCol[1]},${this.skinCol[2]},0.45)`;
 
         // Damage buff = red tint
         if (this.buffs.has(PU_DAMAGE)) {
@@ -139,7 +149,6 @@ class Player {
         else { fill(0, 200, 255); noStroke(); triangle(0, -this.h / 2, -this.w / 2, this.h / 2, this.w / 2, this.h / 2); }
 
         noTint();
-        ctx.shadowBlur = 0;
         pop();
     }
 
