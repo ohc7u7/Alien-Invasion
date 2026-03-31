@@ -30,7 +30,7 @@ class Enemy {
         this.nextShotAt = millis() + random(800, this.shotInterval);
     }
 
-    update(enemyBullets, bw, bh) {
+    update(bulletPool, bw, bh) {
         if (!this.active) return;
 
         if (this.spawning) {
@@ -59,34 +59,34 @@ class Enemy {
         }
 
         if (millis() >= this.nextShotAt) {
-            this.shoot(enemyBullets);
+            this.shoot(bulletPool);
             this.nextShotAt = millis() + this.shotInterval + random(this.shotJitter);
         }
 
         if (this.flashTimer > 0) this.flashTimer--;
     }
 
-    shoot(arr) {
-        let spd = 3.5;
+    shoot(bulletPool) {
+        let spd = 6.5;
         let bx = this.x, by = this.y + this.h / 2;
         switch (this.bulletType) {
             case 0:
-                arr.push(new Bullet(bx, by, 0, spd, false));
+                bulletPool.getBullet(bx, by, 0, spd, false);
                 break;
             case 1:
                 [70, 90, 110].forEach(d => {
                     let r = radians(d);
-                    arr.push(new Bullet(bx, by, cos(r) * spd, sin(r) * spd, false));
+                    bulletPool.getBullet(bx, by, cos(r) * spd, sin(r) * spd, false);
                 });
                 break;
             case 2:
                 [70, 110].forEach(d => {
                     let r = radians(d);
-                    arr.push(new Bullet(bx - 30, by, cos(r) * spd, sin(r) * spd, false));
-                    arr.push(new Bullet(bx + 30, by, cos(r) * spd, sin(r) * spd, false));
+                    bulletPool.getBullet(bx - 30, by, cos(r) * spd, sin(r) * spd, false);
+                    bulletPool.getBullet(bx + 30, by, cos(r) * spd, sin(r) * spd, false);
                 });
-                arr.push(new Bullet(bx - 18, by, 0, spd, false));
-                arr.push(new Bullet(bx + 18, by, 0, spd, false));
+                bulletPool.getBullet(bx - 18, by, 0, spd, false);
+                bulletPool.getBullet(bx + 18, by, 0, spd, false);
                 break;
         }
     }
@@ -102,21 +102,11 @@ class Enemy {
         push();
         translate(this.x, this.y);
 
-        let ctx = drawingContext;
-
         // Elite enemies have a pulsing gold/green glow
         if (this.elite) {
             let ep = (sin(frameCount * 0.12) + 1) * 0.5;
-            ctx.shadowBlur = 25 + ep * 15;
-            ctx.shadowColor = `rgba(255,220,50,${0.5 + ep * 0.4})`;
             // Pulsing tint
             tint(255, 200 + ep * 55, 50 + ep * 80);
-        } else {
-            let gc = this.type === 1 ? 'rgba(255,100,100,0.35)' :
-                this.type === 2 ? 'rgba(255,200,50,0.35)' :
-                    'rgba(200,80,255,0.35)';
-            ctx.shadowBlur = 22;
-            ctx.shadowColor = gc;
         }
 
         if (this.flashTimer > 0) tint(255, 160, 160);
@@ -126,7 +116,6 @@ class Enemy {
         else { fill(255, 80, 80); noStroke(); rectMode(CENTER); rect(0, 0, this.w, this.h, 6); }
 
         if (this.flashTimer > 0 || this.elite) noTint();
-        ctx.shadowBlur = 0;
 
         // Elite star indicator
         if (this.elite) {
