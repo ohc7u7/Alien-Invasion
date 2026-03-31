@@ -7,7 +7,7 @@ class HandController {
         this.handX = null;
         this.handY = null;
         this.prevHandX = null; // Rastrear frame anterior para lógica de dirección
-        
+
         this.targetHandX = null;
         this.targetHandY = null;
         this.detected = false;
@@ -16,7 +16,7 @@ class HandController {
         this.hpReady = false;
         this.ready = false;
 
-        this.captureW = 320; // 320x240 para mayor visualización en la UI
+        this.captureW = 320;
         this.captureH = 240;
         this.followLerp = 0.22;
         this.deadZone = 3;
@@ -33,9 +33,13 @@ class HandController {
         this.inferenceIntervalMs = 1000 / this.maxInferenceFps;
         this.lastInferenceMs = -99999;
 
-        // Variables de Dirección Visual
-        this.direction = "QUIETO"; 
-        this.moveThreshold = 8; // Umbral de píxeles para evitar vibraciones
+        this.direction = "QUIETO";
+        this.moveThreshold = 8;
+
+        this.currentFingerCount = 0;
+        this.stableFingerCount = 0;
+        this.selectionTimer = 0;
+        this.selectionConfirmed = false;
     }
 
     init() {
@@ -49,10 +53,8 @@ class HandController {
             }
         };
 
-        // Captura asignada al DIV derecho en DOM para que se posicione naturalmente
         this.video = createCapture(constraints);
-        this.video.parent('camera-container'); 
-        // No aplicamos video.hide() como antes; CSS se encarga del estilo espejado y padding.
+        this.video.parent('camera-container');
 
         this.updateStatusText("Cargando modelo de manos...");
 
@@ -86,14 +88,14 @@ class HandController {
             return;
         }
 
-        this.prevHandX = this.handX; // Guarda el valor antes de procesar mov
+        this.prevHandX = this.handX;
 
         this.handX = this._smoothAxis(this.handX, this.targetHandX);
         this.handY = this._smoothAxis(this.handY, this.targetHandY);
         this.handX = constrain(this.handX, 0, width);
         this.handY = constrain(this.handY, 0, height);
 
-        // Lógica Integral de Dirección
+
         let deltaX = this.handX - this.prevHandX;
 
         if (deltaX < -this.moveThreshold) {
@@ -106,9 +108,9 @@ class HandController {
     }
 
     updateDirectionUI(newDir) {
-        if (this.direction === newDir) return; 
+        if (this.direction === newDir) return;
         this.direction = newDir;
-        
+
         let indicator = document.getElementById('direction-indicator');
         if (!indicator) return;
 
@@ -123,7 +125,7 @@ class HandController {
             indicator.className = "dir-center";
         }
     }
-    
+
     updateStatusText(msg) {
         let el = document.getElementById('hand-status');
         if (el) el.innerText = msg;
@@ -147,8 +149,8 @@ class HandController {
         let lm = hand.landmarks;
         let rawX = (lm[0][0] + lm[9][0]) * 0.5;
         let rawY = (lm[0][1] + lm[9][1]) * 0.5;
-        
-        // Mapea al contenedor left 
+
+
         let mappedX = map(this.video.width - rawX, 0, this.video.width, 0, width);
         let mappedY = map(rawY, 0, this.video.height, height * 0.2, height - 30);
 
@@ -178,13 +180,45 @@ class HandController {
         this.targetHandX = constrain(mappedX, 0, width);
         this.targetHandY = constrain(mappedY, 0, height);
         this.detected = true;
+
+        // finger counting
+        let indexUp = lm[8][1] < lm[5][1];
+        let middleUp = lm[12][1] < lm[9][1];
+        let ringUp = lm[16][1] < lm[13][1];
+        let pinkyUp = lm[20][1] < lm[17][1];
+
+        let fingers = 0;
+        if (indexUp) fingers++;
+        if (middleUp) fingers++;
+        if (ringUp) fingers++;
+        if (pinkyUp) fingers++;
+
+        if (fingers > 0) {
+            if (fingers === this.currentFingerCount) {
+                if (this.selectionTimer === 0) {
+                    this.selectionTimer = millis();
+                } else if (!this.selectionConfirmed && millis() - this.selectionTimer >= 1500) {
+                    this.selectionConfirmed = true;
+                    this.stableFingerCount = this.currentFingerCount;
+                }
+            } else {
+                this.currentFingerCount = fingers;
+                this.selectionTimer = millis();
+                this.selectionConfirmed = false;
+            }
+        } else {
+            this.currentFingerCount = 0;
+            this.selectionTimer = 0;
+            this.selectionConfirmed = false;
+            this.stableFingerCount = 0;
+        }
     }
 
     _checkLostTracking() {
         if (this.lostFrames < this.maxLostFrames) return;
         this.detected = false;
         this.updateDirectionUI("QUIETO");
-        
+
         this.handX = null;
         this.handY = null;
         this.targetHandX = null;
@@ -192,6 +226,11 @@ class HandController {
         this.stableFrames = 0;
         this.controlReady = false;
         this.hasCenterCalibration = false;
+
+        this.currentFingerCount = 0;
+        this.stableFingerCount = 0;
+        this.selectionTimer = 0;
+        this.selectionConfirmed = false;
     }
 
     _checkReady() {
@@ -204,8 +243,8 @@ class HandController {
         if (abs(target - current) < this.deadZone) return current;
         return lerp(current, target, this.followLerp);
     }
-    
+
     // Eliminado drawPreview(); Ahora todo se maneja mediante DOM/Flexbox 
     // y no renderizado a través de canvas p5 por temas de UX/UI.
-    drawPreview() {}
+    drawPreview() { }
 }

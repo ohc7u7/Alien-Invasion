@@ -135,7 +135,24 @@ function drawSkinSelectScreen(bw, bh) {
         let hovered = mx >= cx && mx <= cx + cardW && my >= cy && my <= cy + cardH;
         let selected = (i === selectedSkinIdx);
 
+        if (handCtrl && handCtrl.currentFingerCount === i + 1) {
+            hovered = true;
+        }
+
         drawSkinCard(cx, cy, cardW, cardH, sk, hovered, selected, i);
+
+        if (hovered && handCtrl && handCtrl.currentFingerCount === i + 1 && handCtrl.selectionTimer > 0) {
+            let elapsed = millis() - handCtrl.selectionTimer;
+            let pct = constrain(elapsed / 1500, 0, 1);
+            if (pct > 0) {
+                push();
+                stroke(sk.col[0], sk.col[1], sk.col[2], 200);
+                strokeWeight(4);
+                noFill();
+                arc(cx + cardW / 2, cy - 16, 20, 20, -HALF_PI, -HALF_PI + TWO_PI * pct);
+                pop();
+            }
+        }
     }
 
     // Stats preview for selected skin

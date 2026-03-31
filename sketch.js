@@ -208,6 +208,20 @@ function keyPressed() {
 
 function updateSkinSelect() {
     drawSkinSelectScreen(gw, gh);
+
+    if (handCtrl && handCtrl.selectionConfirmed) {
+        let idx = handCtrl.currentFingerCount - 1;
+        if (idx >= 0 && idx < SKINS.length) {
+            selectedSkinIdx = idx;
+            if (SKINS[idx].unlocked) {
+                startGame();
+            }
+        }
+        handCtrl.selectionConfirmed = false;
+        handCtrl.selectionTimer = 0;
+        handCtrl.currentFingerCount = 0;
+        handCtrl.stableFingerCount = 0;
+    }
 }
 
 // ── PLAYING ──────────────────────────────────────────────────
@@ -260,7 +274,7 @@ function updatePlaying() {
                                 p.x = e.x; p.y = e.y; p.type = puType;
                                 p.def = PU_DEFS[puType];
                                 p.active = true;
-                                p.radius = 14; 
+                                p.radius = 14;
                                 p.vy = 1.5;
                                 p.bobPhase = random(TWO_PI);
                                 p.spawnTime = frameCount;
@@ -370,6 +384,17 @@ function updateLevelUp() {
     textFont('Rajdhani');
     textSize(14);
     text('Elige una mejora', gw / 2, gh * 0.28);
+
+    if (handCtrl && handCtrl.selectionConfirmed) {
+        let opt = handCtrl.currentFingerCount;
+        if (opt >= 1 && opt <= 3) {
+            applyUpgrade(opt);
+        }
+        handCtrl.selectionConfirmed = false;
+        handCtrl.selectionTimer = 0;
+        handCtrl.currentFingerCount = 0;
+        handCtrl.stableFingerCount = 0;
+    }
 }
 
 function applyUpgrade(option) {

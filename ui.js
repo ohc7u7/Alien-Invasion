@@ -215,15 +215,37 @@ function drawDeckCards() {
         let hovered = mouseX >= cx && mouseX <= cx + cardW &&
             mouseY >= cardY && mouseY <= cardY + cardH;
 
+        if (handCtrl && handCtrl.currentFingerCount === i + 1) {
+            hovered = true;
+        }
+
         drawCard(cx, cardY, cardW, cardH, c, hovered, i + 1);
+
+        if (hovered && handCtrl && handCtrl.currentFingerCount === i + 1 && handCtrl.selectionTimer > 0) {
+            let elapsed = millis() - handCtrl.selectionTimer;
+            let pct = constrain(elapsed / 1500, 0, 1);
+            if (pct > 0) {
+                push();
+                stroke(c.col[0], c.col[1], c.col[2], 200);
+                strokeWeight(4);
+                noFill();
+                arc(cx + cardW / 2, cardY + cardH + 25, 24, 24, -HALF_PI, -HALF_PI + TWO_PI * pct);
+                fill(c.col[0], c.col[1], c.col[2]);
+                noStroke();
+                textSize(10);
+                textAlign(CENTER, CENTER);
+                text(floor(pct * 100) + "%", cx + cardW / 2, cardY + cardH + 25);
+                pop();
+            }
+        }
     }
 
     // Key hints
     fill(150);
     textFont('Rajdhani');
-    textSize(12);
+    textSize(13);
     textAlign(CENTER, TOP);
-    text('Haz clic en una carta  |  Teclas 1, 2, 3', gx + gw / 2, cardY + cardH + 20);
+    text('Haz clic en una carta | Teclas 1, 2, 3 | Cuenta con los dedos', gx + gw / 2, cardY - 22);
 }
 
 function drawCard(x, y, w, h, data, hovered, num) {
@@ -329,7 +351,6 @@ function drawMenuScreen(ready, bw, bh) {
     textFont('Rajdhani');
     textSize(14);
     text('Mueve tu mano para controlar la nave', bw / 2, bh * 0.5);
-    text('Gesto "Dispara" para atacar', bw / 2, bh * 0.55);
     text('Teclado: WASD + P', bw / 2, bh * 0.60);
 
     if (ready) {
