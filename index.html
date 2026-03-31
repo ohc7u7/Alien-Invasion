@@ -1,20 +1,123 @@
 <!DOCTYPE html>
 <html lang="es">
-
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Alien Invasion — Hand Control Edition</title>
     <meta name="description" content="Alien Invasion game controlled with hand gestures using P5.js and ML5.js">
     <link rel="stylesheet" href="style.css">
-    <link
-        href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Rajdhani:wght@300;500;700&display=swap"
-        rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Rajdhani:wght@300;500;700&display=swap" rel="stylesheet">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
     <script src="https://unpkg.com/ml5@0.12.2/dist/ml5.min.js"></script>
+
+    <style>
+        /* CSS Integrado para Layout Moderno de 2 Columnas */
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #050312; /* Fondo galáctico oscuro */
+            color: white;
+            font-family: 'Rajdhani', sans-serif;
+            overflow: hidden; /* Oculta cualquier scroll nativo no deseado */
+        }
+        
+        #main-container {
+            display: flex;
+            flex-direction: row;
+            width: 100vw;
+            height: 100vh;
+        }
+
+        /* Columna Izquierda: Lienzo de p5.js */
+        #game-container {
+            width: 65%; /* Ocupará el 65% del ancho */
+            height: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            position: relative;
+        }
+        
+        /* Ajuste nativo de los canvas internos para que no sobresalgan */
+        #game-container canvas {
+            display: block;
+            outline: none;
+        }
+
+        /* Columna Derecha: Preview de la webcam e UI */
+        #camera-container {
+            width: 35%; /* El resto del ancho de la pantalla */
+            height: 100%;
+            background-color: #02010a; /* Fondo más oscuro para mayor contraste */
+            border-left: 2px solid #0055ff;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            position: relative;
+            box-shadow: -5px 0 25px rgba(0, 85, 255, 0.15);
+        }
+
+        /* Estilos enrutados al <video> inyectado nativamente por createCapture() en p5 */
+        #camera-container video {
+            width: 90%;
+            height: auto;
+            transform: scaleX(-1); /* Fundamental: Efecto Espejo */
+            border: 3px solid #0088ff;
+            border-radius: 12px;
+            box-shadow: 0 0 25px rgba(0, 136, 255, 0.4);
+            object-fit: contain;
+            margin-bottom: 20px;
+        }
+
+        /* Indicador visual Neón de dirección para HandPose */
+        #direction-indicator {
+            position: absolute;
+            top: 12%;
+            left: 50%;
+            transform: translateX(-50%);
+            font-family: 'Orbitron', sans-serif;
+            font-size: 2.5rem;
+            font-weight: 900;
+            text-align: center;
+            color: #fff;
+            opacity: 0.9;
+            transition: all 0.15s ease-out; /* Animación rápida para cambio de color/sombra */
+            z-index: 10;
+            letter-spacing: 2px;
+            white-space: nowrap;
+        }
+        
+        /* Clases de Estado Controladas por JavaScript */
+        .dir-left { color: #00ff88 !important; text-shadow: 0 0 15px #00ff88, 0 0 30px #00ff88 !important; }
+        .dir-right { color: #ff0055 !important; text-shadow: 0 0 15px #ff0055, 0 0 30px #ff0055 !important; }
+        .dir-center { color: #0088ff !important; text-shadow: 0 0 10px #0088ff !important; }
+
+        #hand-status {
+            font-family: 'Rajdhani', sans-serif;
+            font-size: 1.4rem;
+            color: #00ff88;
+            text-shadow: 0 0 8px rgba(0, 255, 136, 0.6);
+            margin-top: 10px;
+        }
+    </style>
 </head>
 
 <body>
+    <!-- Contenedor Flexbox Principal -->
+    <div id="main-container">
+        <!-- Columna 1 del layout -->
+        <div id="game-container"></div>
+        
+        <!-- Columna 2 del layout -->
+        <div id="camera-container">
+            <div id="direction-indicator" class="dir-center">-- ESPERANDO --</div>
+            <!-- El elemento HTML <video> se injectará automáticamente aquí via p5.js -->
+            <div id="hand-status">Iniciando sistema óptico...</div>
+        </div>
+    </div>
+
+    <!-- Scripts de carga del juego -->
     <script src="bullet.js"></script>
     <script src="particles.js"></script>
     <script src="powerup.js"></script>
@@ -25,5 +128,4 @@
     <script src="ui.js"></script>
     <script src="sketch.js"></script>
 </body>
-
 </html>

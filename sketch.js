@@ -51,7 +51,11 @@ function preload() {
 }
 
 function setup() {
-    createCanvas(windowWidth, windowHeight);
+    // NUEVA CONFIGURACIÓN DE LIENZO: Adaptarse al contenedor flex izquierdo
+    let container = document.getElementById('game-container');
+    let canvas = createCanvas(container.clientWidth, container.clientHeight);
+    canvas.parent('game-container'); // Insertar lienzo en el div izquierdo
+
     pixelDensity(1);
     imageMode(CORNER);
     textAlign(CENTER, CENTER);
@@ -84,11 +88,12 @@ function initPools() {
 }
 
 function recalcGameBox() {
-    let scale = min((windowHeight * 0.88) / GAME_H, (windowWidth * 0.5) / GAME_W);
+    // Escalado adaptado al contenedor flex, evitando estirar
+    let scale = min((height * 0.95) / GAME_H, (width * 0.95) / GAME_W);
     gw = floor(GAME_W * scale);
     gh = floor(GAME_H * scale);
-    gx = floor((windowWidth - gw) / 2);
-    gy = floor((windowHeight - gh) / 2);
+    gx = floor((width - gw) / 2);
+    gy = floor((height - gh) / 2);
     buildFrameGlow();
 }
 
@@ -154,9 +159,12 @@ function draw() {
 }
 
 function windowResized() {
-    resizeCanvas(windowWidth, windowHeight);
-    recalcGameBox();
-    starfield = createStarfield();
+    let container = document.getElementById('game-container');
+    if (container) {
+        resizeCanvas(container.clientWidth, container.clientHeight);
+        recalcGameBox();
+        starfield = createStarfield();
+    }
 }
 
 // ── MENU ─────────────────────────────────────────────────────

@@ -6,6 +6,8 @@ class HandController {
 
         this.handX = null;
         this.handY = null;
+        this.prevHandX = null; // Rastrear frame anterior para lógica de dirección
+        
         this.targetHandX = null;
         this.targetHandY = null;
         this.detected = false;
@@ -14,8 +16,8 @@ class HandController {
         this.hpReady = false;
         this.ready = false;
 
-        this.captureW = 160;
-        this.captureH = 120;
+        this.captureW = 320; // 320x240 para mayor visualización en la UI
+        this.captureH = 240;
         this.followLerp = 0.22;
         this.deadZone = 3;
         this.maxLostFrames = 10;
@@ -27,11 +29,13 @@ class HandController {
         this.centerOffsetX = 0;
         this.hasCenterCalibration = false;
 
-        this.maxInferenceFps = 15;
+        this.maxInferenceFps = 20;
         this.inferenceIntervalMs = 1000 / this.maxInferenceFps;
         this.lastInferenceMs = -99999;
 
-        this.statusText = 'Inicializando camara...';
+        // Variables de Dirección Visual
+        this.direction = "QUIETO"; 
+        this.moveThreshold = 8; // Umbral de píxeles para evitar vibraciones
     }
 
     init() {
@@ -45,13 +49,17 @@ class HandController {
             }
         };
 
+        // Captura asignada al DIV derecho en DOM para que se posicione naturalmente
         this.video = createCapture(constraints);
-        this.video.size(this.captureW, this.captureH);
-        this.video.hide();
+        this.video.parent('camera-container'); 
+        // No aplicamos video.hide() como antes; CSS se encarga del estilo espejado y padding.
+
+        this.updateStatusText("Cargando modelo de manos...");
 
         this.handpose = ml5.handpose(this.video, () => {
             console.log('HandPose loaded');
             this.hpReady = true;
+            this.updateStatusText("¡Sistema Listo! Mueve tu mano");
             this._checkReady();
         });
 
@@ -67,19 +75,58 @@ class HandController {
 
     update() {
         if (!this.detected || this.targetHandX === null || this.targetHandY === null) {
+            this.updateDirectionUI("QUIETO");
             return;
         }
 
         if (this.handX === null || this.handY === null) {
             this.handX = this.targetHandX;
             this.handY = this.targetHandY;
+            this.prevHandX = this.handX;
             return;
         }
+
+        this.prevHandX = this.handX; // Guarda el valor antes de procesar mov
 
         this.handX = this._smoothAxis(this.handX, this.targetHandX);
         this.handY = this._smoothAxis(this.handY, this.targetHandY);
         this.handX = constrain(this.handX, 0, width);
         this.handY = constrain(this.handY, 0, height);
+
+        // Lógica Integral de Dirección
+        let deltaX = this.handX - this.prevHandX;
+
+        if (deltaX < -this.moveThreshold) {
+            this.updateDirectionUI("IZQUIERDA");
+        } else if (deltaX > this.moveThreshold) {
+            this.updateDirectionUI("DERECHA");
+        } else {
+            this.updateDirectionUI("QUIETO");
+        }
+    }
+
+    updateDirectionUI(newDir) {
+        if (this.direction === newDir) return; 
+        this.direction = newDir;
+        
+        let indicator = document.getElementById('direction-indicator');
+        if (!indicator) return;
+
+        if (this.direction === "IZQUIERDA") {
+            indicator.innerText = "<< IZQUIERDA";
+            indicator.className = "dir-left";
+        } else if (this.direction === "DERECHA") {
+            indicator.innerText = "DERECHA >>";
+            indicator.className = "dir-right";
+        } else {
+            indicator.innerText = "-- QUIETO --";
+            indicator.className = "dir-center";
+        }
+    }
+    
+    updateStatusText(msg) {
+        let el = document.getElementById('hand-status');
+        if (el) el.innerText = msg;
     }
 
     _processPrediction(results) {
@@ -100,6 +147,8 @@ class HandController {
         let lm = hand.landmarks;
         let rawX = (lm[0][0] + lm[9][0]) * 0.5;
         let rawY = (lm[0][1] + lm[9][1]) * 0.5;
+        
+        // Mapea al contenedor left 
         let mappedX = map(this.video.width - rawX, 0, this.video.width, 0, width);
         let mappedY = map(rawY, 0, this.video.height, height * 0.2, height - 30);
 
@@ -134,6 +183,8 @@ class HandController {
     _checkLostTracking() {
         if (this.lostFrames < this.maxLostFrames) return;
         this.detected = false;
+        this.updateDirectionUI("QUIETO");
+        
         this.handX = null;
         this.handY = null;
         this.targetHandX = null;
@@ -146,7 +197,6 @@ class HandController {
     _checkReady() {
         if (this.hpReady) {
             this.ready = true;
-            this.statusText = 'Modelo de mano listo.';
         }
     }
 
@@ -154,29 +204,8 @@ class HandController {
         if (abs(target - current) < this.deadZone) return current;
         return lerp(current, target, this.followLerp);
     }
-
-    drawPreview(px, py, pw, ph) {
-        if (!this.video) return;
-
-        push();
-        noStroke();
-        fill(0, 160);
-        rect(px - 3, py - 3, pw + 6, ph + 6, 6);
-        fill(0, 180, 255, 70);
-        rect(px - 1, py - 1, pw + 2, ph + 2, 4);
-
-        push();
-        translate(px + pw, py);
-        scale(-1, 1);
-        image(this.video, 0, 0, pw, ph);
-        pop();
-
-        textFont('Rajdhani');
-        textSize(11);
-        textAlign(LEFT, TOP);
-        noStroke();
-        fill(0, 255, 120);
-        text('AUTO FIRE', px + 3, py + ph + 4);
-        pop();
-    }
+    
+    // Eliminado drawPreview(); Ahora todo se maneja mediante DOM/Flexbox 
+    // y no renderizado a través de canvas p5 por temas de UX/UI.
+    drawPreview() {}
 }
