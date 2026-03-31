@@ -1,6 +1,12 @@
 // ── Enemy class ──────────────────────────────────────────────
 class Enemy {
-    constructor(x, y, type, pattern, patternParams) {
+    constructor() {
+        this.active = false;
+        this.w = 52;
+        this.h = 52;
+    }
+
+    activate(x, y, type, pattern, patternParams) {
         this.x = x;
         this.spawnTargetY = y;
         this.y = -80;

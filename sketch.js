@@ -66,10 +66,21 @@ function setup() {
 }
 
 function initPools() {
-    bulletPool = new BulletPool(160);
-    particlePool = new ParticlePool(700);
-    exhaustPool = new ParticlePool(280);
-    explosionPool = new ExplosionPool(24, particlePool);
+    bulletPool = new BulletPool(400);
+    particlePool = new ParticlePool(300);
+    exhaustPool = new ParticlePool(300);
+    explosionPool = new ExplosionPool(50, particlePool);
+
+    enemies = new Array(50);
+    for (let i = 0; i < 50; i++) {
+        enemies[i] = new Enemy();
+    }
+
+    powerups = new Array(30);
+    for (let i = 0; i < 30; i++) {
+        powerups[i] = new PowerUp(0, 0, 0);
+        powerups[i].active = false;
+    }
 }
 
 function recalcGameBox() {
@@ -202,7 +213,10 @@ function updatePlaying() {
 
     player.update(hx, hy, handCtrl.shooting, bulletPool, exhaustPool, gw, gh);
 
-    for (let e of enemies) e.update(bulletPool, gw, gh);
+    for (let i = 0; i < enemies.length; i++) {
+        let e = enemies[i];
+        if (e.active) e.update(bulletPool, gw, gh);
+    }
 
     bulletPool.updateAll(gw, gh);
     particlePool.updateAll();
@@ -210,8 +224,10 @@ function updatePlaying() {
     explosionPool.updateAll();
 
     // Update power-ups
-    for (let p of powerups) p.update();
-    powerups = powerups.filter(p => p.active);
+    for (let i = 0; i < powerups.length; i++) {
+        let p = powerups[i];
+        if (p.active) p.update();
+    }
 
     // ── Collisions: player bullets → enemies ──
     for (let bi = 0; bi < bulletPool.pool.length; bi++) {
@@ -230,7 +246,19 @@ function updatePlaying() {
                     // Elite enemy → drop power-up
                     if (e.elite) {
                         let puType = floor(random(4));
-                        powerups.push(new PowerUp(e.x, e.y, puType));
+                        for (let k = 0; k < powerups.length; k++) {
+                            if (!powerups[k].active) {
+                                let p = powerups[k];
+                                p.x = e.x; p.y = e.y; p.type = puType;
+                                p.def = PU_DEFS[puType];
+                                p.active = true;
+                                p.radius = 14; 
+                                p.vy = 1.5;
+                                p.bobPhase = random(TWO_PI);
+                                p.spawnTime = frameCount;
+                                break;
+                            }
+                        }
                         explosionPool.getExplosion(e.x, e.y, 35, [
                             [255, 220, 50], [255, 255, 100], [255, 180, 0], [255, 240, 150]
                         ]);
@@ -286,8 +314,14 @@ function updatePlaying() {
     }
 
     // ── Draw ──
-    for (let e of enemies) e.draw(getSpriteForType(e.type));
-    for (let pu of powerups) pu.draw();
+    for (let i = 0; i < enemies.length; i++) {
+        let e = enemies[i];
+        if (e.active) e.draw(getSpriteForType(e.type));
+    }
+    for (let i = 0; i < powerups.length; i++) {
+        let pu = powerups[i];
+        if (pu.active) pu.draw();
+    }
     exhaustPool.drawAll();
     player.draw(sprPlayer);
     bulletPool.drawAll();
@@ -304,7 +338,10 @@ function updatePlaying() {
 // ── LEVEL UP ─────────────────────────────────────────────────
 
 function updateLevelUp() {
-    for (let e of enemies) e.draw(getSpriteForType(e.type));
+    for (let i = 0; i < enemies.length; i++) {
+        let e = enemies[i];
+        if (e.active) e.draw(getSpriteForType(e.type));
+    }
     exhaustPool.drawAll();
     player.draw(sprPlayer);
     bulletPool.drawAll();
@@ -365,12 +402,12 @@ function updateGameOver() {
 function startGame() {
     let skin = getSelectedSkin();
     player = new Player(gw / 2, gh * 0.75, skin);
-    enemies = [];
+    for (let i = 0; i < enemies.length; i++) enemies[i].active = false;
     bulletPool.deactivateAll();
     particlePool.deactivateAll();
     exhaustPool.deactivateAll();
     explosionPool.deactivateAll();
-    powerups = [];
+    for (let i = 0; i < powerups.length; i++) powerups[i].active = false;
     waveType = 1;
     killCount = 0;
     totalKills = 0;
@@ -381,7 +418,7 @@ function startGame() {
 }
 
 function spawnWave() {
-    enemies = [];
+    for (let i = 0; i < enemies.length; i++) enemies[i].active = false;
     let cx = gw / 2;
     let patterns;
     switch (waveType) {
@@ -413,8 +450,12 @@ function spawnWave() {
             ];
             break;
     }
+    let ei = 0;
     for (let cfg of patterns) {
-        enemies.push(new Enemy(cfg.x, cfg.y, waveType, cfg.p, cfg.pp || {}));
+        if (ei < enemies.length) {
+            enemies[ei].activate(cfg.x, cfg.y, waveType, cfg.p, cfg.pp || {});
+            ei++;
+        }
     }
 }
 
@@ -426,16 +467,14 @@ function respawnEnemy(idx) {
         return;
     }
     let old = enemies[idx];
-    let e = new Enemy(old.x, old.spawnTargetY, waveType, old.pattern, old.pp);
+    old.activate(old.x, old.spawnTargetY, waveType, old.pattern, old.pp);
 
     // Make elite if cycle hit
     if (totalKills > 0 && totalKills % ELITE_EVERY === 0) {
-        e.elite = true;
-        e.hearts = ceil(e.hearts * 1.5);
-        e.maxH = e.hearts;
+        old.elite = true;
+        old.hearts = ceil(old.hearts * 1.5);
+        old.maxH = old.hearts;
     }
-
-    enemies[idx] = e;
 }
 
 function getSpriteForType(t) {
