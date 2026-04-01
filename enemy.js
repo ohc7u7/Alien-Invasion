@@ -22,11 +22,17 @@ class Enemy {
         this.flashTimer = 0;
         this.elite = false; // set externally to mark as power-up carrier
 
-        if (this.type === 1) { this.hearts = 2; this.maxH = 2; this.bulletType = 0; this.speed = 2.8; }
-        else if (this.type === 2) { this.hearts = 4; this.maxH = 4; this.bulletType = 1; this.speed = 3.0; }
-        else { this.hearts = 6; this.maxH = 6; this.bulletType = 2; this.speed = 2.4; }
+        let levelMult = player ? player.level : 1; 
+        let hpScale = 1 + (levelMult - 1) * 0.4; 
+        let speedScale = 1 + (levelMult - 1) * 0.05;
 
-        this.shotInterval = this.pp.shotInterval || 1800;
+        if (this.type === 1) { this.hearts = 2 * hpScale; this.maxH = 2 * hpScale; this.bulletType = 0; this.speed = 2.8 * speedScale; }
+        else if (this.type === 2) { this.hearts = 4 * hpScale; this.maxH = 4 * hpScale; this.bulletType = 1; this.speed = 3.0 * speedScale; }
+        else { this.hearts = 6 * hpScale; this.maxH = 6 * hpScale; this.bulletType = 2; this.speed = 2.4 * speedScale; }
+
+   
+        let fireRateScale = max(0.4, 1 - (levelMult - 1) * 0.08); 
+        this.shotInterval = (this.pp.shotInterval || 1800) * fireRateScale;
         this.shotJitter = this.pp.shotJitter || 600;
         this.nextShotAt = 0;
     }
@@ -73,7 +79,7 @@ class Enemy {
     }
 
     shoot(bulletPool) {
-        let spd = 6.5;
+        let spd = 7.5;
         let bx = this.x, by = this.y + this.h / 2;
         switch (this.bulletType) {
             case 0:

@@ -301,7 +301,10 @@ function updatePlaying() {
         if (!b.active || b.isPlayer) continue;
         if (dist(b.x, b.y, player.x, player.y) < (player.w / 2.2 + b.radius)) {
             b.deactivate();
-            if (player.takeDamage(1)) {
+            
+            let dmg = 1 + Math.floor(player.level / 5);
+            
+            if (player.takeDamage(dmg)) {
                 gameState = STATE_GAMEOVER;
                 explosionPool.getExplosion(player.x, player.y, 50, [
                     [0, 180, 255], [0, 255, 255], [255, 255, 255], [100, 200, 255]
@@ -398,14 +401,14 @@ function applyUpgrade(option) {
     if (gameState !== STATE_LEVELUP) return;
     switch (option) {
         case 1:
-            player.maxHealth += 20;
-            player.health = player.maxHealth;
+            player.maxHealth += Math.trunc(player.maxHealth * 0.20); // Increase max health by 20%
+            player.health += Math.trunc(player.maxHealth * 0.30); // Heal 30% of new max health
             break;
         case 2:
-            player.baseDamage += 2;
+            player.baseDamage += 1;
             break;
         case 3:
-            player.shotCadence = max(150, player.shotCadence - 60);
+            player.shotCadence = max(200, player.shotCadence - 20);
             break;
     }
     player.expToLevel += 200;
