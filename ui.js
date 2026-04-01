@@ -191,9 +191,9 @@ function drawScoreInBox(score, bw) {
 // ═══════════════════════════════════════════════════════════
 
 const CARD_DATA = [
-    { id: 1, title: '❤ VIDA', desc: 'Recupera y aumenta\nvida máxima +20', col: [255, 80, 80] },
-    { id: 2, title: '⚔ DAÑO', desc: 'Aumenta el daño\nde tus balas +2', col: [255, 200, 50] },
-    { id: 3, title: '⚡ CADENCIA', desc: 'Dispara más\nrápido -60ms', col: [0, 200, 255] }
+    { id: 1, title: '❤ VIDA', desc: 'Recupera 30% y aumenta\nvida máxima +20%', col: [255, 80, 80] },
+    { id: 2, title: '⚔ DAÑO', desc: 'Aumenta el daño\nde tus balas +1', col: [255, 200, 50] },
+    { id: 3, title: '⚡ CADENCIA', desc: 'Dispara más\nrápido -20ms (hasta 200ms)', col: [0, 200, 255] }
 ];
 
 function drawDeckCards() {
@@ -209,7 +209,12 @@ function drawDeckCards() {
     let startX = gx + (gw - totalW) / 2;
     let cardY = gy + gh * 0.38;
 
-    for (let i = 0; i < 3; i++) {
+    nCardsShown = 3;
+    if (player.shotCadence<=200) {
+        nCardsShown = 2;
+    }
+
+    for (let i = 0; i < nCardsShown; i++) {
         let cx = startX + i * (cardW + gap);
         let c = CARD_DATA[i];
         let hovered = mouseX >= cx && mouseX <= cx + cardW &&
