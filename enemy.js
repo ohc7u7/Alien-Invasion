@@ -41,8 +41,8 @@ class Enemy {
 
         if (this.spawning) {
             let dy = this.spawnTargetY - this.y;
-            this.y += dy * 0.045;
-            if (abs(dy) < 1.5) { this.y = this.spawnTargetY; this.spawning = false; this.start(); }
+            this.y += dy * 0.15;
+            if (abs(dy) < 4) { this.y = this.spawnTargetY; this.spawning = false; this.start(); }
             return;
         }
 
