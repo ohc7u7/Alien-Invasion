@@ -3,7 +3,7 @@
 const PU_SHIELD = 0;  // temporary invincibility
 const PU_RAPID = 1;  // increased fire rate
 const PU_DAMAGE = 2;  // double damage
-const PU_SPEED = 3;  // faster ship
+const PU_SPEED = 5;  // faster ship
 
 const PU_DURATION = 300; // frames (~5 sec at 60fps)
 
