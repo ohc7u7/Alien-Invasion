@@ -5,7 +5,7 @@ const PU_RAPID = 1;  // increased fire rate
 const PU_DAMAGE = 2;  // double damage
 const PU_SPEED = 3;  // faster ship
 
-const PU_DURATION = 360; // frames (~6 sec at 60fps)
+const PU_DURATION = 300; // frames (~5 sec at 60fps)
 
 const PU_DEFS = [
     { id: PU_SHIELD, label: '🛡 SHIELD', col: [0, 220, 255], icon: '🛡' },

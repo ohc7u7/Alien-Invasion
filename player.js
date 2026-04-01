@@ -9,12 +9,14 @@ class Player {
         this.h = 60;
 
         // Apply skin stats
+        this.skinId = skin ? skin.id : 'default';
         this.baseDamage = skin ? skin.damage : 2;
         this.baseSpeed = skin ? skin.speed : 5;
-        this.baseCadence = skin ? skin.cadence : 550;
+        this.baseCadence = skin ? skin.cadence : 500;
         this.health = skin ? skin.health : 15;
         this.maxHealth = this.health;
         this.skinCol = skin ? skin.col : [0, 200, 255];
+        this.tintCol = skin ? skin.tintCol : [255, 255, 255];
 
         this.score = 0;
         this.damage = this.baseDamage;
@@ -43,9 +45,9 @@ class Player {
         this.buffs.update();
 
         // Apply buff modifiers
-        let speedMult = this.buffs.has(PU_SPEED) ? 1.6 : 1.0;
-        let damageMult = this.buffs.has(PU_DAMAGE) ? 2.0 : 1.0;
-        let cadenceMult = this.buffs.has(PU_RAPID) ? 0.4 : 1.0;
+        let speedMult = this.buffs.has(PU_SPEED) ? 1.4 : 1.0;
+        let damageMult = this.buffs.has(PU_DAMAGE) ? 1.75 : 1.0;
+        let cadenceMult = this.buffs.has(PU_RAPID) ? 0.5 : 1.0;
 
         this.damage = ceil(this.baseDamage * damageMult);
         this.kbSpeed = this.baseSpeed * speedMult;
@@ -95,11 +97,18 @@ class Player {
 
     emitExhaust(exhaustPool) {
         if (!exhaustPool) return;
+        let sc = this.skinCol;
         for (let i = 0; i < 2; i++) {
+            // Mix skin color into exhaust
+            let exCol = [
+                floor(lerp(sc[0], 255, random(0.3, 0.7))),
+                floor(lerp(sc[1], 255, random(0.3, 0.7))),
+                floor(lerp(sc[2], 255, random(0.3, 0.7)))
+            ];
             exhaustPool.emit(
                 this.x + random(-8, 8),
                 this.y + this.h / 2,
-                [0, floor(random(120, 255)), 255],
+                exCol,
                 {
                     vx: random(-0.5, 0.5),
                     vy: random(2, 5),
@@ -121,7 +130,7 @@ class Player {
         return this.health <= 0;
     }
 
-    draw(sprite) {
+    draw() {
         push();
         translate(this.x, this.y);
         rotate(this.tilt);
@@ -137,7 +146,22 @@ class Player {
             noStroke();
         }
 
-        // Damage buff = red tint
+        // Skin color glow aura behind ship
+        let sc = this.skinCol;
+        let glowPulse = (sin(frameCount * 0.06) + 1) * 0.5;
+        let ctx = drawingContext;
+        ctx.shadowBlur = 18 + glowPulse * 10;
+        ctx.shadowColor = `rgba(${sc[0]},${sc[1]},${sc[2]},0.6)`;
+
+        // Colored engine stripe
+        noStroke();
+        fill(sc[0], sc[1], sc[2], 60 + glowPulse * 40);
+        ellipse(0, this.h * 0.15, this.w * 0.5, this.h * 0.7);
+
+        // Draw ship sprite with skin tint
+        tint(this.tintCol[0], this.tintCol[1], this.tintCol[2]);
+
+        // Damage buff = red tint overlay
         if (this.buffs.has(PU_DAMAGE)) {
             tint(255, 140, 100);
         } else if (this.buffs.has(PU_SPEED)) {
@@ -145,9 +169,10 @@ class Player {
         }
 
         imageMode(CENTER);
-        if (sprite) image(sprite, 0, 0, this.w, this.h);
-        else { fill(0, 200, 255); noStroke(); triangle(0, -this.h / 2, -this.w / 2, this.h / 2, this.w / 2, this.h / 2); }
+        if (sprPlayer) image(sprPlayer, 0, 0, this.w, this.h);
+        else { fill(sc[0], sc[1], sc[2]); noStroke(); triangle(0, -this.h / 2, -this.w / 2, this.h / 2, this.w / 2, this.h / 2); }
 
+        ctx.shadowBlur = 0;
         noTint();
         pop();
     }

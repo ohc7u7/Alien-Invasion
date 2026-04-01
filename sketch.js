@@ -63,7 +63,7 @@ function setup() {
     recalcGameBox();
     initPools();
     starfield = createStarfield();
-    loadSkinUnlocks();
+    // All skins available from start
 
     handCtrl = new HandController();
     handCtrl.init();
@@ -190,7 +190,7 @@ function keyPressed() {
         if (keyCode === RIGHT_ARROW || key === 'd' || key === 'D') {
             selectedSkinIdx = (selectedSkinIdx + 1) % SKINS.length;
         }
-        if ((keyCode === ENTER || keyCode === 32) && SKINS[selectedSkinIdx].unlocked) {
+        if (keyCode === ENTER || keyCode === 32) {
             startGame();
         }
     }
@@ -213,9 +213,7 @@ function updateSkinSelect() {
         let idx = handCtrl.currentFingerCount - 1;
         if (idx >= 0 && idx < SKINS.length) {
             selectedSkinIdx = idx;
-            if (SKINS[idx].unlocked) {
-                startGame();
-            }
+            startGame();
         }
         handCtrl.selectionConfirmed = false;
         handCtrl.selectionTimer = 0;
@@ -305,7 +303,6 @@ function updatePlaying() {
             b.deactivate();
             if (player.takeDamage(1)) {
                 gameState = STATE_GAMEOVER;
-                checkAndUnlockSkins(player.score);
                 explosionPool.getExplosion(player.x, player.y, 50, [
                     [0, 180, 255], [0, 255, 255], [255, 255, 255], [100, 200, 255]
                 ]);
@@ -345,7 +342,7 @@ function updatePlaying() {
         if (pu.active) pu.draw();
     }
     exhaustPool.drawAll();
-    player.draw(sprPlayer);
+    player.draw();
     bulletPool.drawAll();
     particlePool.drawAll();
 
@@ -524,10 +521,8 @@ function mousePressed() {
     }
     if (gameState === STATE_SKINSELECT) {
         handleSkinSelectClick(mouseX, mouseY, gw, gh);
-        // Double-click start: if clicked on already-selected unlocked skin
-        let sk = SKINS[selectedSkinIdx];
-        if (sk.unlocked) {
-            // Check if click is in the lower area (start button zone)
+        // Click in lower area to start
+        {
             let ry = mouseY - gy;
             if (ry > gh * 0.7) startGame();
         }
